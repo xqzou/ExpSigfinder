@@ -1,20 +1,17 @@
 #' Wrap for subtracting the background to estimate the experimentally generated signature
 #' @param MutCatalogue 96-channel mutational catalog
 #' @param bg_column the column name of the background catalog
-#' @param ko_columns the column names of the experiment catalog
-#' @param sampling_number
-#' @param start_num
-#' @param boundary
-#' @param outputname
-#' @return
+#' @param ko_column the column names of the experiment catalog
+#' @param sampling_number number of bootstrapping samples
+#' @param start_num mutation burden to start
+#' @param boundary Range of signature around centroid (default = 2)
+#' @param outputname output file name
 #' @export
 Wrap_KOSig <- function(MutCatalogue,bg_column,ko_column,sampling_number, start_num,boundary,outputname){
   
   KOSig <- RemoveBackground_vector_single(MutCatalogue[,bg_column], MutCatalogue[,ko_column],sampling_number, start_num,boundary)
   KOSig$MutationType <- MutCatalogue[,"MutationType"]
-  write.table(KOSig,paste0(outputname,".txt"),sep = "\t",col.names = T, row.names = F, quote = F)
-  plotCountbasis(KOSig,1,6,9,paste0(outputname,".pdf"))
-  plotPercentagebasis(KOSig,1,6,9,paste0(outputname,"_percentage.pdf"))
+  utils::write.table(KOSig,paste0(outputname,".txt"),sep = "\t",col.names = T, row.names = F, quote = F)
   
 }
 
@@ -24,9 +21,9 @@ Wrap_KOSig <- function(MutCatalogue,bg_column,ko_column,sampling_number, start_n
 #' @param sig_profile experimentally generated mutational catalog
 #' @param sampling_number number of bootstrapping samples
 #' @param start_num mutation burden to start
-#' @param boundary Range of sigature around centroid (default = 2)
-#' @return
-#' @export
+#' @param boundary Range of signature around centroid (default = 2)
+#' @return data.frame including background signature and experiment signature
+#' @export 
 RemoveBackground_vector_single <- function(background_profile, sig_profile,sampling_number, start_num,boundary=2){
   
   # Remove weak mutation types in sig_profile
@@ -35,9 +32,14 @@ RemoveBackground_vector_single <- function(background_profile, sig_profile,sampl
   Totalmutations <- sum(sig_profile)
   removeMutations_max <- removeWeakMutationTypes * Totalmutations
   removeIdx <- which(cumsum(rowSums(genomesOriginal[,1:dim(genomesOriginal)[2],drop = FALSE])[order(rowSums(genomesOriginal[,1:dim(genomesOriginal)[2],drop = FALSE]))])<= min(removeMutations_max,4))
+  if(length(removeIdx)>0){
   mutationTypesToRemoveSet <- order(rowSums(genomesOriginal[,1:dim(genomesOriginal)[2],drop = FALSE]))[removeIdx]
   genomesReducted <- as.data.frame(genomesOriginal[-mutationTypesToRemoveSet,])
   reducedMutationtypes <- dim(genomesReducted)[1]
+  }else{
+    mutationTypesToRemoveSet <- dim(genomesOriginal)[1]+1
+    genomesReducted <- genomesOriginal
+  }
   
   # bootstrap sig profile
   centroid_sig <- rowMeans(genomesReducted[,1:dim(genomesReducted)[2],drop = FALSE])
@@ -46,7 +48,7 @@ RemoveBackground_vector_single <- function(background_profile, sig_profile,sampl
   
   i=start_num
   reachLimit <- FALSE
-  
+  diff_all_save <- NULL
   while(i<sum(centroid_sig) & !reachLimit){
     # Remove the same weak mutation types in background profile
     backgroundReducted <- background_profile[-mutationTypesToRemoveSet]
@@ -55,12 +57,12 @@ RemoveBackground_vector_single <- function(background_profile, sig_profile,sampl
     
     # Range of background
     centroid_background <- rowMeans(bg_bootstraps)
-    sd_background <- apply(bg_bootstraps,1,sd)
+    sd_background <- apply(bg_bootstraps,1,stats::sd)
     boundary_background <- centroid_background+boundary*sd_background
     
     # Range of sig
     centroid_sig <- rowMeans(Sig_bootstraps)
-    sd_sig <- apply(Sig_bootstraps,1,sd)
+    sd_sig <- apply(Sig_bootstraps,1,stats::sd)
     boundary_sig <- centroid_sig+boundary*sd_sig
     
     
@@ -82,6 +84,12 @@ RemoveBackground_vector_single <- function(background_profile, sig_profile,sampl
     i = i+1
     
   }
+  
+  if(length(diff_all_save)==0) {
+    stop("You need to reduce the start_number! ", 
+         "Exiting...",call.=FALSE)
+  }
+  
   # Add Weak mutations for KO expoure
   exposure <- rep(0,96)
   origArrayIndex <- 1
@@ -115,7 +123,7 @@ RemoveBackground_vector_single <- function(background_profile, sig_profile,sampl
 #' @export
 bootstrapGenomesfun2 <- function(genomes,n){
   
-  return(apply(genomes, 2, function(x) rmultinom(1, n, x)))
+  return(apply(genomes, 2, function(x) stats::rmultinom(1, n, x)))
 }
 
 
