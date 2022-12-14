@@ -18,6 +18,10 @@ R CMD INSTALL .
 library("ExpSigfinder")
 library(tidyverse)
 
+df <- read.table("pig_a_mutation_matrix.tsv", sep = "\t", header = T, as.is = T) 
+df <- df %>%
+  mutate(bg_profile=rowMeans(df[,c("VehCtrlRep3c.1","VehCtrlRep4c.1","VehCtrlRep2c.1")]))
+  
 # calculate the average number of mutation burden in controls
 bg_mean <- sum(df$bg_profile)
 
