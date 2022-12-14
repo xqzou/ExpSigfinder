@@ -12,7 +12,6 @@ R CMD INSTALL .
 
 
 ## Example
-Apply MMRDetect to 26 breast cancers
 
 ```{r, eval = FALSE}
 # import the packages 
